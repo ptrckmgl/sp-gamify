@@ -43,10 +43,10 @@
   .badges { display: grid; grid-template-columns: repeat(auto-fill, minmax(64px, 1fr)); gap: 6px; margin-top: 8px; }
   .badge { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 8px 2px; background: transparent; color: var(--g-muted); border: 1px solid var(--g-track); border-radius: 8px; font-weight: 400; opacity: .55; }
   .badge.got { opacity: 1; color: var(--g-accent); border-color: var(--g-accent); }
-  .badge .material-icons { font-size: 24px; }
+  .badge .icon { width: 24px; height: 24px; margin: 0; }
   .badge-name { font-size: 10px; line-height: 1.2; text-align: center; color: var(--g-fg); }
   #freeze { display: flex; align-items: center; justify-content: flex-end; gap: 2px; }
-  #freeze .material-icons { font-size: 14px; color: var(--g-accent); }
+  #freeze .icon { width: 14px; height: 14px; margin: 0 2px 0 0; color: var(--g-accent); }
   .week { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; align-items: end; height: 96px; margin-top: 10px; }
   .wcol { display: flex; flex-direction: column; justify-content: flex-end; align-items: center; height: 100%; gap: 3px; }
   .wval { font-size: 10px; color: var(--g-muted); line-height: 1; }
@@ -56,15 +56,15 @@
   .wcol.today .wday { color: var(--g-fg); font-weight: 600; }
   .quest { padding: 8px 0; border-top: 1px solid var(--g-track); }
   .quest:first-child { border-top: none; }
-  .quest .row .material-icons { font-size: 18px; margin-right: 6px; vertical-align: -4px; color: var(--g-muted); }
-  .quest.done .row .material-icons { color: var(--g-good); }
+  .quest .row .icon { width: 18px; height: 18px; margin: 0 6px 0 0; vertical-align: -4px; color: var(--g-muted); }
+  .quest.done .row .icon { color: var(--g-good); }
   .quest.done .qtext { color: var(--g-muted); text-decoration: line-through; }
   .quest .bar { height: 6px; margin: 6px 0 0; }
   .combo { display: none; align-items: center; gap: 4px; margin-top: 6px; color: var(--g-accent); font-weight: 600; font-size: 13px; }
   .combo.on { display: flex; }
-  .combo .material-icons { font-size: 16px; }
+  .combo .icon { width: 16px; height: 16px; margin: 0; }
   .rank { display: flex; align-items: center; gap: 4px; color: var(--g-accent); font-weight: 600; font-size: 13px; margin-top: 2px; }
-  .rank .material-icons { font-size: 18px; }
+  .rank .icon { width: 18px; height: 18px; margin: 0; }
   .icon { width: 1em; height: 1em; fill: currentColor; vertical-align: -0.12em; margin-left: 3px; }
   .icon-flame { color: var(--g-accent); }
   .done .icon-check { margin: 0 4px 0 0; }
@@ -93,7 +93,7 @@
       <div>
         <div class="label">Level</div>
         <div class="big" id="level">1</div>
-        <div class="rank"><span class="material-icons" id="rankIcon" aria-hidden="true"></span><span id="rankName"></span></div>
+        <div class="rank"><span id="rankIcon"></span><span id="rankName"></span></div>
       </div>
       <div style="text-align:right">
         <div class="label">Streak</div>
@@ -307,7 +307,34 @@
 
   const ICONS = {
     flame: 'M19.48 12.35c-1.57-4.08-7.16-4.3-5.81-10.23.1-.44-.37-.78-.75-.55C9.29 3.71 6.68 8 8.87 13.62c.18.46-.36.89-.75.59-1.81-1.37-2-3.34-1.84-4.75.06-.52-.62-.77-.91-.34C4.69 10.16 4 11.84 4 14.37c.38 5.6 5.11 7.32 6.81 7.54 2.43.31 5.06-.14 6.95-1.87 2.08-1.93 2.84-5.01 1.72-7.69z',
-    check: 'M9 16.17 4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z'
+    check: 'M9 16.17 4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z',
+    eco: 'M17 8C8 10 5.9 16.17 3.82 21.34l1.89.66.95-2.3c.48.17.98.3 1.34.3C19 20 22 3 22 3c-1 2-8 2.25-13 3.25S2 11.5 2 13.5s1.75 3.75 1.75 3.75C7 8 17 8 17 8z',
+    hiking: 'M16 6l2.29 2.29-4.88 4.88-4-4L2 16.59 3.41 18l6-6 4 4 6.3-6.29L22 12V6z',
+    explore: 'M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm0 18a8 8 0 1 1 0-16 8 8 0 0 1 0 16zm4.5-12.5l-7 3-3 7 7-3z',
+    shield: 'M12 1 3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z',
+    emoji_events: 'M19 5h-2V3H7v2H5c-1.1 0-2 .9-2 2v1c0 2.55 1.92 4.63 4.39 4.94.63 1.5 1.98 2.63 3.61 2.96V19H7v2h10v-2h-4v-3.1c1.63-.33 2.98-1.46 3.61-2.96C19.08 12.63 21 10.55 21 8V7c0-1.1-.9-2-2-2zM5 8V7h2v3.82C5.84 10.4 5 9.3 5 8zm14 0c0 1.3-.84 2.4-2 2.82V7h2v1z',
+    workspace_premium: 'M12 17.27 18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z',
+    auto_awesome: 'M12 2l2.4 7.6L22 12l-7.6 2.4L12 22l-2.4-7.6L2 12l7.6-2.4z',
+    diamond: 'M12 22 2 9l4-6h12l4 6-10 13z',
+    task_alt: 'M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z',
+    check_circle: 'M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z',
+    checklist: 'M9 16.17 4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z',
+    done_all: 'M18 7l-1.41-1.41-6.34 6.34 1.41 1.41L18 7zm4.24-1.41L11.66 16.17 7.48 12l-1.41 1.41L11.66 19l12-12-1.42-1.41zM.41 13.41L6 19l1.41-1.41L1.83 12 .41 13.41z',
+    military_tech: 'M19 5h-2V3H7v2H5c-1.1 0-2 .9-2 2v1c0 2.55 1.92 4.63 4.39 4.94.63 1.5 1.98 2.63 3.61 2.96V19H7v2h10v-2h-4v-3.1c1.63-.33 2.98-1.46 3.61-2.96C19.08 12.63 21 10.55 21 8V7c0-1.1-.9-2-2-2zM5 8V7h2v3.82C5.84 10.4 5 9.3 5 8zm14 0c0 1.3-.84 2.4-2 2.82V7h2v1z',
+    local_fire_department: 'M19.48 12.35c-1.57-4.08-7.16-4.3-5.81-10.23.1-.44-.37-.78-.75-.55C9.29 3.71 6.68 8 8.87 13.62c.18.46-.36.89-.75.59-1.81-1.37-2-3.34-1.84-4.75.06-.52-.62-.77-.91-.34C4.69 10.16 4 11.84 4 14.37c.38 5.6 5.11 7.32 6.81 7.54 2.43.31 5.06-.14 6.95-1.87 2.08-1.93 2.84-5.01 1.72-7.69z',
+    whatshot: 'M19.48 12.35c-1.57-4.08-7.16-4.3-5.81-10.23.1-.44-.37-.78-.75-.55C9.29 3.71 6.68 8 8.87 13.62c.18.46-.36.89-.75.59-1.81-1.37-2-3.34-1.84-4.75.06-.52-.62-.77-.91-.34C4.69 10.16 4 11.84 4 14.37c.38 5.6 5.11 7.32 6.81 7.54 2.43.31 5.06-.14 6.95-1.87 2.08-1.93 2.84-5.01 1.72-7.69z',
+    calendar_month: 'M19 4h-1V2h-2v2H8V2H6v2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2zm0 16H5V9h14v11z',
+    repeat: 'M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z',
+    trending_up: 'M16 6l2.29 2.29-4.88 4.88-4-4L2 16.59 3.41 18l6-6 4 4 6.3-6.29L22 12V6z',
+    rocket_launch: 'M12 2l2.4 7.6L22 12l-7.6 2.4L12 22l-2.4-7.6L2 12l7.6-2.4z',
+    stars: 'M12 17.27 18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z',
+    wb_twilight: 'M12 7a5 5 0 1 0 0 10 5 5 0 0 0 0-10zM11 1h2v3h-2zM11 20h2v3h-2zM1 11h3v2H1zM20 11h3v2h-3zM4.2 5.6l1.4-1.4 2.1 2.1-1.4 1.4zM16.3 17.7l1.4-1.4 2.1 2.1-1.4 1.4zM4.2 18.4l2.1-2.1 1.4 1.4-2.1 2.1zM16.3 6.3l2.1-2.1 1.4 1.4-2.1 2.1z',
+    bedtime: 'M12 3a9 9 0 1 0 9 9c0-.46-.04-.92-.1-1.36a5.39 5.39 0 0 1-4.4 2.26A5.4 5.4 0 0 1 11.1 7.5c0-1.8.9-3.4 2.26-4.4A9.7 9.7 0 0 0 12 3z',
+    timer: 'M15 1H9v2h6V1zm-4 13h2V8h-2v6zm8.03-6.61l1.42-1.42c-.43-.51-.9-.99-1.41-1.41l-1.42 1.42A8.962 8.962 0 0 0 12 4c-4.97 0-9 4.03-9 9s4.02 9 9 9a8.994 8.994 0 0 0 7.03-14.61zM12 20c-3.87 0-7-3.13-7-7s3.13-7 7-7 7 3.13 7 7-3.13 7-7 7z',
+    lock: 'M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zM9 8V6c0-1.66 1.34-3 3-3s3 1.34 3 3v2H9z',
+    ac_unit: 'M11 2h2v20h-2zM2 11h20v2H2zM4.9 6.3l1.4-1.4 14.8 14.8-1.4 1.4zM4.9 17.7L19.7 4.3l1.4 1.4L6.3 19.1z',
+    flag: 'M14.4 6L14 4H5v17h2v-7h5.6l.4 2h7V6z',
+    bolt: 'M11 21h-1l1-7H7.5c-.58 0-.57-.32-.38-.66.19-.34.05-.08.07-.12C8.48 10.94 10.42 7.54 13 3h1l-1 7h3.5c.49 0 .56.33.47.51l-.07.15C12.96 17.55 11 21 11 21z'
   };
   function icon(name) {
     const NS = 'http://www.w3.org/2000/svg';
@@ -316,7 +343,7 @@
     svg.setAttribute('class', 'icon icon-' + name);
     svg.setAttribute('aria-hidden', 'true');
     const path = document.createElementNS(NS, 'path');
-    path.setAttribute('d', ICONS[name]);
+    path.setAttribute('d', ICONS[name] || ICONS.flag);
     svg.appendChild(path);
     return svg;
   }
@@ -361,9 +388,7 @@
       const cell = el('button', 'badge' + (got ? ' got' : ''));
       cell.type = 'button';
       cell.setAttribute('aria-label', b.name + (got ? ' (earned)' : ' (locked)') + ': ' + b.desc);
-      const ic = el('span', 'material-icons', got ? b.icon : 'lock');
-      ic.setAttribute('aria-hidden', 'true');
-      cell.appendChild(ic);
+      cell.appendChild(icon(got ? b.icon : 'lock'));
       cell.appendChild(el('span', 'badge-name', b.name));
       cell.addEventListener('click', () => { selectedBadge = b.id; showBadgeInfo(earned); });
       grid.appendChild(cell);
@@ -405,9 +430,7 @@
       const row = el('div', 'quest' + (q.done ? ' done' : ''));
       const top = el('div', 'row');
       const left = el('div');
-      const ic = el('span', 'material-icons', q.done ? 'check_circle' : 'flag');
-      ic.setAttribute('aria-hidden', 'true');
-      left.appendChild(ic);
+      left.appendChild(icon(q.done ? 'check_circle' : 'flag'));
       left.appendChild(el('span', 'qtext', questText(q)));
       top.appendChild(left);
       top.appendChild(el('div', 'muted', q.done ? 'Done' : prog + ' / ' + q.target + ' · +' + q.xp + ' XP'));
@@ -497,7 +520,7 @@
       const next = levelFloor(level + 1);
       $('level').textContent = level;
       const rank = rankFor(level);
-      $('rankIcon').textContent = rank.icon;
+      $('rankIcon').replaceChildren(icon(rank.icon));
       $('rankName').textContent = rank.name;
       $('xpText').textContent = (total - floor) + ' / ' + (next - floor) + ' XP to level ' + (level + 1);
       $('totalXp').textContent = 'Total: ' + total + ' XP';
@@ -516,9 +539,7 @@
       const fz = $('freeze');
       fz.replaceChildren();
       if (freezes > 0) {
-        const ic = el('span', 'material-icons', 'ac_unit');
-        ic.setAttribute('aria-hidden', 'true');
-        fz.appendChild(ic);
+        fz.appendChild(icon('ac_unit'));
         fz.appendChild(document.createTextNode(freezes + (freezes === 1 ? ' freeze' : ' freezes')));
       }
       withIcon($('streak'), String(alive ? state.streak : 0), 'flame');
@@ -548,9 +569,7 @@
       const comboOn = combo && combo.count >= 2 && Date.now() - combo.lastAt <= 30 * 60 * 1000;
       cl.classList.toggle('on', !!comboOn);
       if (comboOn) {
-        const ic = el('span', 'material-icons', 'bolt');
-        ic.setAttribute('aria-hidden', 'true');
-        cl.appendChild(ic);
+        cl.appendChild(icon('bolt'));
         cl.appendChild(document.createTextNode('Combo x' + combo.count + (combo.count >= 3 ? ': bonus XP active' : ': one more task for a bonus')));
       }
       renderHabits(habits, today);
