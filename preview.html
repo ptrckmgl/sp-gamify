@@ -1,0 +1,100 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Gamify preview (not part of the plugin)</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  body { margin: 0; font: 14px system-ui, sans-serif; background: #888; }
+  #bar { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; padding: 8px 12px; background: #222; color: #eee; }
+  #bar select, #bar button { font: inherit; }
+  #wrap { display: flex; justify-content: center; padding: 12px; }
+  iframe { width: 380px; height: calc(100vh - 80px); border: 1px solid #555; background: transparent; }
+</style>
+</head>
+<body>
+<div id="bar">
+  <label>App theme (cfg.theme)
+    <select id="cfgTheme"><option>light</option><option>dark</option></select>
+  </label>
+  <label>Sample data
+    <select id="scenario">
+      <option value="fresh">Fresh start</option>
+      <option value="active" selected>Active day</option>
+      <option value="goal">Goal met, long streaks</option>
+      <option value="empty">No habits</option>
+    </select>
+  </label>
+  <button id="reload">Reload panel</button>
+  <span>Files are re-read on every reload, so edit index.html and press this.</span>
+</div>
+<div id="wrap"><iframe id="frame"></iframe></div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const pad = (n) => String(n).padStart(2, '0');
+const ds = (d) => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+function daysAgo(n) { const d = new Date(); d.setDate(d.getDate() - n); return ds(d); }
+function counts(list) { const o = {}; list.forEach((n) => { o[daysAgo(n)] = 1; }); return o; }
+const range = (a, b) => Array.from({ length: b - a + 1 }, (_, i) => a + i);
+
+function scenarioData(name) {
+  const today = ds(new Date());
+  const tasks = { t1: { id: 't1', timeSpentOnDay: { [today]: 45 * 60000 } } };
+  const habits = {
+    h1: { id: 'h1', title: 'Gym', isEnabled: true, countOnDay: counts([0, 1, 2, 4, 5]) },
+    h2: { id: 'h2', title: 'Read 20 min', isEnabled: true, countOnDay: counts(range(1, 12)) },
+    h3: { id: 'h3', title: 'Meditate', isEnabled: true, countOnDay: {} },
+  };
+  const state = (xp, streak, best, day) => ({
+    totalXp: xp, streak, bestStreak: best, lastGoalDay: streak ? today : null,
+    days: { [today]: day },
+  });
+  switch (name) {
+    case 'fresh':
+      return { tasks: {}, habits, state: state(0, 0, 0, { xp: 0, lost: 0, tasks: 0, goalMet: false }) };
+    case 'goal':
+      return { tasks, habits, state: state(1240, 21, 30, { xp: 140, lost: 0, tasks: 7, goalMet: true }) };
+    case 'empty':
+      return { tasks, habits: {}, state: state(180, 2, 4, { xp: 30, lost: 10, tasks: 2, goalMet: false }) };
+    default:
+      return { tasks, habits, state: state(130, 3, 5, { xp: 40, lost: 10, tasks: 3, goalMet: false }) };
+  }
+}
+
+const settingsStore = {};
+
+function mockScript(theme, scn) {
+  const data = scenarioData(scn);
+  const store = Object.assign({ state: JSON.stringify(data.state) }, settingsStore);
+  // Runs inside the panel's iframe before index.html's own script.
+  return '<script>(function(){' +
+    'var store=' + JSON.stringify(store) + ';' +
+    'var app={tasks:' + JSON.stringify(data.tasks) + ',simpleCounters:' + JSON.stringify(data.habits) + '};' +
+    'window.PluginAPI={' +
+      'cfg:{theme:' + JSON.stringify(theme) + ',platform:"web"},' +
+      'Hooks:{},registerHook:function(){},' +
+      'getAppState:async function(){return app;},' +
+      'loadSyncedData:async function(k){return store[k]||null;},' +
+      'persistDataSynced:async function(v,k){store[k]=v;parent.postMessage({save:[k,v]},"*");},' +
+      'showSnack:function(o){parent.postMessage({snack:o},"*");},' +
+      'log:{err:console.error,info:console.log}' +
+    '};})();<\/script>';
+}
+
+async function load() {
+  const html = await (await fetch('index.html', { cache: 'no-store' })).text();
+  const out = html.replace('<head>', '<head>' + mockScript($('cfgTheme').value, $('scenario').value));
+  $('frame').srcdoc = out;
+}
+
+window.addEventListener('message', (e) => {
+  if (e.data && e.data.save) settingsStore[e.data.save[0]] = e.data.save[1];
+  if (e.data && e.data.snack) console.log('SNACK', e.data.snack);
+});
+
+$('cfgTheme').onchange = $('scenario').onchange = $('reload').onclick = load;
+load();
+</script>
+</body>
+</html>

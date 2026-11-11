@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  :root {
+    --bg: #ffffff; --fg: #1f2328; --muted: #6b7280; --card: #f4f5f7;
+    --track: #e3e5e8; --accent: #4f7cff; --good: #2e9d5b; --warn: #d9534f;
+  }
+  [data-theme="dark"] {
+    --bg: #1e1f22; --fg: #e8e8ea; --muted: #9aa0a6; --card: #2a2b2f;
+    --track: #3a3b40; --accent: #7c9cff; --good: #4cc27e; --warn: #ef6b67;
+  }
+  body {
+    margin: 0; padding: 12px; background: var(--bg); color: var(--fg);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; font-size: 14px;
+  }
+  .card { background: var(--card); border-radius: 10px; padding: 12px; margin-bottom: 10px; }
+  .label { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .05em; }
+  .big { font-size: 26px; font-weight: 600; line-height: 1.2; }
+  .row { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+  .muted { color: var(--muted); font-size: 12px; }
+  .bar { height: 8px; background: var(--track); border-radius: 4px; overflow: hidden; margin: 8px 0 4px; }
+  .fill { height: 100%; width: 0; background: var(--accent); transition: width .3s; }
+  .fill.good { background: var(--good); }
+  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; text-align: center; margin-top: 8px; }
+  .stat .num { font-size: 18px; font-weight: 600; }
+  .lost { color: var(--warn); }
+  .done { color: var(--good); font-weight: 600; }
+  .habit { padding: 8px 0; border-top: 1px solid var(--track); }
+  .habit:first-child { border-top: none; }
+  .habit-title { font-weight: 600; }
+  .habit-streak { font-size: 18px; font-weight: 600; text-align: right; }
+  .form { display: grid; grid-template-columns: 1fr 100px; gap: 8px; margin-top: 8px; align-items: center; }
+  .full { grid-column: 1 / -1; }
+  select, input[type="number"], input[type="time"], button {
+    font: inherit; color: var(--fg); background: var(--bg);
+    border: 1px solid var(--track); border-radius: 6px; padding: 6px 8px;
+  }
+  .check { display: flex; align-items: center; gap: 8px; }
+  button {
+    background: var(--accent); color: #fff; border: none; cursor: pointer; font-weight: 600;
+  }
+  ul { margin: 6px 0 0; padding-left: 18px; color: var(--muted); font-size: 12px; }
+</style>
+</head>
+<body>
+  <div class="card">
+    <div class="row">
+      <div>
+        <div class="label">Level</div>
+        <div class="big" id="level">1</div>
+      </div>
+      <div style="text-align:right">
+        <div class="label">Streak</div>
+        <div class="big" id="streak">0</div>
+        <div class="muted" id="best">Best: 0</div>
+      </div>
+    </div>
+    <div class="bar"><div class="fill" id="xpFill"></div></div>
+    <div class="row muted">
+      <span id="xpText">0 / 100 XP</span>
+      <span id="totalXp">Total: 0 XP</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="row">
+      <div class="label">Today's goal</div>
+      <div class="muted" id="goalState"></div>
+    </div>
+    <div class="bar"><div class="fill" id="goalFill"></div></div>
+    <div class="muted" id="goalText">0 / 5 tasks</div>
+    <div class="stats">
+      <div class="stat"><div class="num" id="tasksToday">0</div><div class="muted">tasks</div></div>
+      <div class="stat"><div class="num" id="minToday">0</div><div class="muted">min tracked</div></div>
+      <div class="stat"><div class="num" id="xpToday">0</div><div class="muted">XP</div></div>
+    </div>
+    <div class="muted lost" id="lostToday" style="margin-top:6px"></div>
+  </div>
+
+  <div class="card">
+    <div class="label">Habits</div>
+    <div id="habitList"></div>
+  </div>
+
+  <div class="card">
+    <div class="label">Settings</div>
+    <div class="form">
+      <select id="goalType">
+        <option value="tasks">Tasks completed</option>
+        <option value="minutes">Minutes tracked</option>
+        <option value="xp">XP earned</option>
+      </select>
+      <input id="goalTarget" type="number" min="1" max="10000" step="1">
+      <label class="check full"><input id="reminderEnabled" type="checkbox"> Streak reminder</label>
+      <span class="muted">Remind after</span>
+      <input id="reminderTime" type="time">
+      <select id="reminderDevices" class="full">
+        <option value="all">On all devices</option>
+        <option value="mobile">On phones only</option>
+      </select>
+      <button id="saveBtn" type="button" class="full">Save settings</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="label">How XP works</div>
+    <ul>
+      <li>Task +10 XP, subtask +5 XP</li>
+      <li>+1 XP per 5 min tracked (max 48)</li>
+      <li>+15 XP when finished within estimate</li>
+      <li>+10 XP when finished before the due date</li>
+      <li>Habit done today +10 XP, +20 bonus every 7-day habit streak</li>
+      <li>−10 XP per overdue task and per missed habit day</li>
+      <li>Main streak grows each day you reach your goal; habit streaks grow each day you do the habit</li>
+    </ul>
+  </div>
+
+<script>
+(function () {
+  const DEFAULT_SETTINGS = {
+    goalType: 'tasks', goalTarget: 5,
+    reminderEnabled: true, reminderTime: '20:00', reminderDevices: 'all'
+  };
+  const DEFAULT_TARGETS = { tasks: 5, minutes: 120, xp: 100 };
+  const UNITS = { tasks: 'tasks', minutes: 'min', xp: 'XP' };
+  const $ = (id) => document.getElementById(id);
+  let formReady = false;
+
+  function pad(n) { return String(n).padStart(2, '0'); }
+  function localDateStr(d) {
+    return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+  }
+  function addDays(dayStr, n) {
+    const [y, m, d] = dayStr.split('-').map(Number);
+    const dt = new Date(y, m - 1, d);
+    dt.setDate(dt.getDate() + n);
+    return localDateStr(dt);
+  }
+  function levelFloor(l) { return 50 * l * (l - 1); }
+  function levelFromXp(xp) {
+    let l = 1;
+    while (levelFloor(l + 1) <= xp) l++;
+    return l;
+  }
+  function habitStreak(cod, today) {
+    let day = (cod[today] || 0) > 0 ? today : addDays(today, -1);
+    let n = 0;
+    while ((cod[day] || 0) > 0 && n < 3650) { n++; day = addDays(day, -1); }
+    return n;
+  }
+  function habitBest(cod) {
+    const days = Object.keys(cod).filter((k) => cod[k] > 0).sort();
+    let best = 0, run = 0, prev = null;
+    for (const d of days) {
+      run = prev && addDays(prev, 1) === d ? run + 1 : 1;
+      best = Math.max(best, run);
+      prev = d;
+    }
+    return best;
+  }
+
+  async function getToday() {
+    if (typeof PluginAPI.getDayContext === 'function') {
+      try { return (await PluginAPI.getDayContext()).todayStr; } catch (e) {}
+    }
+    return localDateStr(new Date());
+  }
+
+  async function loadJson(key, fallback) {
+    try {
+      const raw = await PluginAPI.loadSyncedData(key);
+      if (raw) return Object.assign({}, fallback, JSON.parse(raw));
+    } catch (e) {}
+    return Object.assign({}, fallback);
+  }
+
+  function minutesOn(tasks, dayStr) {
+    let ms = 0;
+    for (const t of tasks) {
+      if (t.subTaskIds && t.subTaskIds.length) continue;
+      const v = t.timeSpentOnDay && t.timeSpentOnDay[dayStr];
+      if (v) ms += v;
+    }
+    return Math.floor(ms / 60000);
+  }
+
+  function setTheme() {
+    let dark = false;
+    try { dark = PluginAPI.cfg && PluginAPI.cfg.theme === 'dark'; } catch (e) {}
+    try {
+      if (!dark && window.matchMedia) dark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    } catch (e) {}
+    try {
+      // Host page, if the iframe is allowed to see it.
+      const pb = window.parent && window.parent.document && window.parent.document.body;
+      if (!dark && pb && /dark/i.test(pb.className + ' ' + (window.parent.document.documentElement.className || ''))) dark = true;
+    } catch (e) {}
+    document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
+  }
+  setInterval(setTheme, 3000);
+  try {
+    const mq = window.matchMedia('(prefers-color-scheme: dark)');
+    if (mq.addEventListener) mq.addEventListener('change', setTheme);
+    else if (mq.addListener) mq.addListener(setTheme);
+  } catch (e) {}
+
+  function el(tag, className, text) {
+    const node = document.createElement(tag);
+    if (className) node.className = className;
+    if (text !== undefined) node.textContent = text;
+    return node;
+  }
+
+  function renderHabits(habits, today) {
+    const list = $('habitList');
+    list.replaceChildren();
+    if (!habits.length) {
+      list.appendChild(el('div', 'muted', 'No habits yet. Enabled simple counters will show up here.'));
+      return;
+    }
+    for (const c of habits) {
+      const cod = c.countOnDay || {};
+      const doneToday = (cod[today] || 0) > 0;
+      const row = el('div', 'habit row');
+      const left = el('div');
+      left.appendChild(el('div', 'habit-title', c.title));
+      left.appendChild(el('div', doneToday ? 'done' : 'muted', doneToday ? '✓ Done today' : 'Not done yet today'));
+      const right = el('div');
+      right.appendChild(el('div', 'habit-streak', habitStreak(cod, today) + '🔥'));
+      right.appendChild(el('div', 'muted', 'Best: ' + habitBest(cod)));
+      row.appendChild(left);
+      row.appendChild(right);
+      list.appendChild(row);
+    }
+  }
+
+  async function render() {
+    try {
+      const today = await getToday();
+      const state = await loadJson('state', {
+        totalXp: 0, streak: 0, bestStreak: 0, lastGoalDay: null, days: {}
+      });
+      const settings = await loadJson('settings', DEFAULT_SETTINGS);
+      const appState = await PluginAPI.getAppState();
+      const minutes = minutesOn(Object.values(appState.tasks || {}), today);
+      const habits = Object.values(appState.simpleCounters || {}).filter((c) => c && c.isEnabled);
+      const day = (state.days && state.days[today]) || { xp: 0, lost: 0, tasks: 0, goalMet: false };
+
+      // Level
+      const total = state.totalXp || 0;
+      const level = levelFromXp(total);
+      const floor = levelFloor(level);
+      const next = levelFloor(level + 1);
+      $('level').textContent = level;
+      $('xpText').textContent = (total - floor) + ' / ' + (next - floor) + ' XP to level ' + (level + 1);
+      $('totalXp').textContent = 'Total: ' + total + ' XP';
+      $('xpFill').style.width = Math.min(100, ((total - floor) / (next - floor)) * 100) + '%';
+
+      // Main streak (shown as 0 once a day has been missed)
+      const alive = state.lastGoalDay === today || state.lastGoalDay === addDays(today, -1);
+      $('streak').textContent = (alive ? state.streak : 0) + '🔥';
+      $('best').textContent = 'Best: ' + (state.bestStreak || 0);
+
+      // Goal
+      let progress = day.tasks;
+      if (settings.goalType === 'minutes') progress = minutes;
+      if (settings.goalType === 'xp') progress = day.xp;
+      const target = settings.goalTarget;
+      const met = day.goalMet || progress >= target;
+      $('goalText').textContent = Math.min(progress, target) + ' / ' + target + ' ' + UNITS[settings.goalType];
+      $('goalFill').style.width = Math.min(100, (progress / target) * 100) + '%';
+      $('goalFill').classList.toggle('good', met);
+      $('goalState').textContent = met ? 'Done ✓' : '';
+      $('goalState').className = met ? 'done' : 'muted';
+
+      $('tasksToday').textContent = day.tasks;
+      $('minToday').textContent = minutes;
+      $('xpToday').textContent = day.xp;
+      $('lostToday').textContent = day.lost ? '−' + day.lost + ' XP lost today' : '';
+
+      renderHabits(habits, today);
+
+      if (!formReady) {
+        $('goalType').value = settings.goalType;
+        $('goalTarget').value = settings.goalTarget;
+        $('reminderEnabled').checked = !!settings.reminderEnabled;
+        $('reminderTime').value = settings.reminderTime;
+        $('reminderDevices').value = settings.reminderDevices;
+        formReady = true;
+      }
+    } catch (e) {
+      PluginAPI.log.err('[Gamify panel] render failed', e);
+    }
+  }
+
+  $('goalType').addEventListener('change', () => {
+    $('goalTarget').value = DEFAULT_TARGETS[$('goalType').value];
+  });
+
+  $('saveBtn').addEventListener('click', async () => {
+    const goalType = $('goalType').value;
+    const goalTarget = Math.round(Number($('goalTarget').value));
+    const reminderTime = $('reminderTime').value || '20:00';
+    if (!Number.isFinite(goalTarget) || goalTarget < 1 || goalTarget > 10000) {
+      PluginAPI.showSnack({ msg: 'Please enter a goal between 1 and 10000.', type: 'ERROR' });
+      return;
+    }
+    if (!/^\d{2}:\d{2}$/.test(reminderTime)) {
+      PluginAPI.showSnack({ msg: 'Please enter a valid reminder time.', type: 'ERROR' });
+      return;
+    }
+    const settings = {
+      goalType,
+      goalTarget,
+      reminderEnabled: $('reminderEnabled').checked,
+      reminderTime,
+      reminderDevices: $('reminderDevices').value
+    };
+    await PluginAPI.persistDataSynced(JSON.stringify(settings), 'settings');
+    PluginAPI.showSnack({ msg: 'Settings saved.', type: 'SUCCESS', ico: 'check' });
+    render();
+  });
+
+  const H = PluginAPI.Hooks || {};
+  const refreshHooks = [
+    H.PERSISTED_DATA_CHANGED || 'persistedDataChanged',
+    H.DATA_CHANGED || 'dataChanged',
+    H.DAY_CHANGE || 'dayChange',
+  ];
+  for (const hook of refreshHooks) {
+    try { PluginAPI.registerHook(hook, () => render()); } catch (e) {}
+  }
+
+  setTheme();
+  render();
+  setInterval(render, 60 * 1000);
+})();
+</script>
+</body>
+</html>
