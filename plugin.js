@@ -329,7 +329,7 @@
       PluginAPI.showSnack({
         msg:
           '+' + result.gained + ' XP: ' +
-          result.gains.map((g) => g.title + ' (' + g.streak + '🔥)').join(', '),
+          result.gains.map((g) => g.title + ' (' + g.streak + '-day streak)').join(', '),
         type: 'SUCCESS',
         ico: 'repeat',
       });
@@ -535,7 +535,7 @@
     if (!missing.length) return;
 
     await PluginAPI.notify({
-      title: 'Keep your streaks alive 🔥',
+      title: 'Keep your streaks alive',
       body: 'Still to do today: ' + missing.join(', '),
     });
   }

@@ -3,45 +3,63 @@
 <head>
 <meta charset="utf-8">
 <style>
+  /* Fallback palette (used outside the app, e.g. the local preview) */
   :root {
-    --bg: #ffffff; --fg: #1f2328; --muted: #6b7280; --card: #f4f5f7;
-    --track: #e3e5e8; --accent: #4f7cff; --good: #2e9d5b; --warn: #d9534f;
+    --f-bg: #ffffff; --f-fg: #1f2328; --f-muted: #6b7280; --f-card: #f4f5f7;
+    --f-accent: #4f7cff; --f-good: #2e9d5b; --f-warn: #d9534f; --f-input: #ffffff;
+    /* Prefer the host app's theme variables so the panel matches it */
+    --g-bg: var(--bg, var(--f-bg));
+    --g-fg: var(--text-color, var(--f-fg));
+    --g-muted: var(--text-color-muted, var(--f-muted));
+    --g-card: var(--card-bg, var(--f-card));
+    --g-accent: var(--c-primary, var(--f-accent));
+    --g-on-accent: var(--c-contrast, #fff);
+    --g-good: var(--color-success, var(--f-good));
+    --g-warn: var(--color-danger, var(--f-warn));
+    --g-input: var(--input-bg, var(--f-input));
+    --g-border: var(--input-border-color, var(--divider-color, rgba(128,128,128,.35)));
+    --g-track: color-mix(in srgb, var(--g-fg) 16%, transparent);
+    color-scheme: light;
   }
   [data-theme="dark"] {
-    --bg: #1e1f22; --fg: #e8e8ea; --muted: #9aa0a6; --card: #2a2b2f;
-    --track: #3a3b40; --accent: #7c9cff; --good: #4cc27e; --warn: #ef6b67;
+    --f-bg: #1e1f22; --f-fg: #e8e8ea; --f-muted: #9aa0a6; --f-card: #2a2b2f;
+    --f-accent: #7c9cff; --f-good: #4cc27e; --f-warn: #ef6b67; --f-input: #2a2b2f;
+    color-scheme: dark;
   }
   body {
-    margin: 0; padding: 12px; background: var(--bg); color: var(--fg);
-    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; font-size: 14px;
+    margin: 0; padding: 12px; background: var(--g-bg); color: var(--g-fg);
+    font-family: var(--font-primary-stack, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif); font-size: 14px;
   }
-  .card { background: var(--card); border-radius: 10px; padding: 12px; margin-bottom: 10px; }
-  .label { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .05em; }
+  .card { background: var(--g-card); border-radius: 10px; padding: 12px; margin-bottom: 10px; }
+  .label { color: var(--g-muted); font-size: 11px; text-transform: uppercase; letter-spacing: .05em; }
   .big { font-size: 26px; font-weight: 600; line-height: 1.2; }
   .row { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
-  .muted { color: var(--muted); font-size: 12px; }
-  .bar { height: 8px; background: var(--track); border-radius: 4px; overflow: hidden; margin: 8px 0 4px; }
-  .fill { height: 100%; width: 0; background: var(--accent); transition: width .3s; }
-  .fill.good { background: var(--good); }
+  .muted { color: var(--g-muted); font-size: 12px; }
+  .bar { height: 8px; background: var(--g-track); border-radius: 4px; overflow: hidden; margin: 8px 0 4px; }
+  .fill { height: 100%; width: 0; background: var(--g-accent); transition: width .3s; }
+  .fill.good { background: var(--g-good); }
   .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; text-align: center; margin-top: 8px; }
   .stat .num { font-size: 18px; font-weight: 600; }
-  .lost { color: var(--warn); }
-  .done { color: var(--good); font-weight: 600; }
-  .habit { padding: 8px 0; border-top: 1px solid var(--track); }
+  .icon { width: 1em; height: 1em; fill: currentColor; vertical-align: -0.12em; margin-left: 3px; }
+  .icon-flame { color: var(--g-accent); }
+  .done .icon-check { margin: 0 4px 0 0; }
+  .lost { color: var(--g-warn); }
+  .done { color: var(--g-good); font-weight: 600; }
+  .habit { padding: 8px 0; border-top: 1px solid var(--g-track); }
   .habit:first-child { border-top: none; }
   .habit-title { font-weight: 600; }
   .habit-streak { font-size: 18px; font-weight: 600; text-align: right; }
   .form { display: grid; grid-template-columns: 1fr 100px; gap: 8px; margin-top: 8px; align-items: center; }
   .full { grid-column: 1 / -1; }
   select, input[type="number"], input[type="time"], button {
-    font: inherit; color: var(--fg); background: var(--bg);
-    border: 1px solid var(--track); border-radius: 6px; padding: 6px 8px;
+    font: inherit; color: var(--g-fg); background: var(--g-input);
+    border: 1px solid var(--g-border); border-radius: 6px; padding: 6px 8px;
   }
   .check { display: flex; align-items: center; gap: 8px; }
   button {
-    background: var(--accent); color: #fff; border: none; cursor: pointer; font-weight: 600;
+    background: var(--g-accent); color: var(--g-on-accent); border: none; cursor: pointer; font-weight: 600;
   }
-  ul { margin: 6px 0 0; padding-left: 18px; color: var(--muted); font-size: 12px; }
+  ul { margin: 6px 0 0; padding-left: 18px; color: var(--g-muted); font-size: 12px; }
 </style>
 </head>
 <body>
@@ -188,6 +206,14 @@
 
   function setTheme() {
     let dark = false;
+    try {
+      // The host sets --is-dark-theme (1/0) on :root; trust it when present
+      const v = getComputedStyle(document.documentElement).getPropertyValue('--is-dark-theme').trim();
+      if (v === '1' || v === '0') {
+        document.documentElement.setAttribute('data-theme', v === '1' ? 'dark' : 'light');
+        return;
+      }
+    } catch (e) {}
     try { dark = PluginAPI.cfg && PluginAPI.cfg.theme === 'dark'; } catch (e) {}
     try {
       if (!dark && window.matchMedia) dark = window.matchMedia('(prefers-color-scheme: dark)').matches;
@@ -205,6 +231,25 @@
     if (mq.addEventListener) mq.addEventListener('change', setTheme);
     else if (mq.addListener) mq.addListener(setTheme);
   } catch (e) {}
+
+  const ICONS = {
+    flame: 'M19.48 12.35c-1.57-4.08-7.16-4.3-5.81-10.23.1-.44-.37-.78-.75-.55C9.29 3.71 6.68 8 8.87 13.62c.18.46-.36.89-.75.59-1.81-1.37-2-3.34-1.84-4.75.06-.52-.62-.77-.91-.34C4.69 10.16 4 11.84 4 14.37c.38 5.6 5.11 7.32 6.81 7.54 2.43.31 5.06-.14 6.95-1.87 2.08-1.93 2.84-5.01 1.72-7.69z',
+    check: 'M9 16.17 4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z'
+  };
+  function icon(name) {
+    const NS = 'http://www.w3.org/2000/svg';
+    const svg = document.createElementNS(NS, 'svg');
+    svg.setAttribute('viewBox', '0 0 24 24');
+    svg.setAttribute('class', 'icon icon-' + name);
+    svg.setAttribute('aria-hidden', 'true');
+    const path = document.createElementNS(NS, 'path');
+    path.setAttribute('d', ICONS[name]);
+    svg.appendChild(path);
+    return svg;
+  }
+  function withIcon(node, text, name) {
+    node.replaceChildren(document.createTextNode(text), icon(name));
+  }
 
   function el(tag, className, text) {
     const node = document.createElement(tag);
@@ -226,9 +271,14 @@
       const row = el('div', 'habit row');
       const left = el('div');
       left.appendChild(el('div', 'habit-title', c.title));
-      left.appendChild(el('div', doneToday ? 'done' : 'muted', doneToday ? '✓ Done today' : 'Not done yet today'));
+      const status = el('div', doneToday ? 'done' : 'muted');
+      if (doneToday) status.appendChild(icon('check'));
+      status.appendChild(document.createTextNode(doneToday ? 'Done today' : 'Not done yet today'));
+      left.appendChild(status);
       const right = el('div');
-      right.appendChild(el('div', 'habit-streak', habitStreak(cod, today) + '🔥'));
+      const hs = el('div', 'habit-streak');
+      withIcon(hs, String(habitStreak(cod, today)), 'flame');
+      right.appendChild(hs);
       right.appendChild(el('div', 'muted', 'Best: ' + habitBest(cod)));
       row.appendChild(left);
       row.appendChild(right);
@@ -260,7 +310,7 @@
 
       // Main streak (shown as 0 once a day has been missed)
       const alive = state.lastGoalDay === today || state.lastGoalDay === addDays(today, -1);
-      $('streak').textContent = (alive ? state.streak : 0) + '🔥';
+      withIcon($('streak'), String(alive ? state.streak : 0), 'flame');
       $('best').textContent = 'Best: ' + (state.bestStreak || 0);
 
       // Goal
@@ -272,7 +322,8 @@
       $('goalText').textContent = Math.min(progress, target) + ' / ' + target + ' ' + UNITS[settings.goalType];
       $('goalFill').style.width = Math.min(100, (progress / target) * 100) + '%';
       $('goalFill').classList.toggle('good', met);
-      $('goalState').textContent = met ? 'Done ✓' : '';
+      $('goalState').replaceChildren();
+      if (met) { $('goalState').appendChild(icon('check')); $('goalState').appendChild(document.createTextNode('Done')); }
       $('goalState').className = met ? 'done' : 'muted';
 
       $('tasksToday').textContent = day.tasks;
