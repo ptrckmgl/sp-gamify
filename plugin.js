@@ -33,7 +33,6 @@
   const GOAL_UNITS = { tasks: 'tasks', minutes: 'min', xp: 'XP' };
 
   let timerId = null;
-  let habitTimerId = null;
   let queue = Promise.resolve();
 
   // ---------- helpers ----------
@@ -562,16 +561,47 @@
     evaluateGoal();
   });
 
-  // React quickly when a habit counter is clicked; the interval is the fallback
-  PluginAPI.registerHook(PluginAPI.Hooks.ACTION, ({ action }) => {
-    if (!action || typeof action.type !== 'string') return;
-    if (action.type.indexOf('SimpleCounter') === -1 && action.type.indexOf('Task') === -1) return;
-    clearTimeout(habitTimerId);
-    habitTimerId = setTimeout(async () => {
-      try { await revertUndone(); } catch (e) { PluginAPI.log.err('[Gamify] undo failed', e); }
+  // React quickly when a task or habit counter changes; the interval is the fallback.
+  // Runs right away on the first action, then once more shortly after in case the
+  // app state had not settled yet. Neither run is postponed by later actions.
+  const NOISY_ACTION = /timespent|timetracking|tick/i; // fire constantly while tracking
+  const FOLLOW_UP_MS = 800;
+  let quickRunning = false;
+  let quickAgain = false;
+  let followUpTimer = null;
+
+  async function quickCheck() {
+    if (quickRunning) {
+      quickAgain = true;
+      return;
+    }
+    quickRunning = true;
+    try {
+      await revertUndone();
       await checkHabits();
       await evaluateGoal();
-    }, 1500);
+    } catch (e) {
+      PluginAPI.log.err('[Gamify] quick check failed', e);
+    } finally {
+      quickRunning = false;
+      if (quickAgain) {
+        quickAgain = false;
+        quickCheck();
+      }
+    }
+  }
+
+  PluginAPI.registerHook(PluginAPI.Hooks.ACTION, ({ action }) => {
+    if (!action || typeof action.type !== 'string') return;
+    if (NOISY_ACTION.test(action.type)) return;
+    if (action.type.indexOf('SimpleCounter') === -1 && action.type.indexOf('Task') === -1) return;
+    quickCheck();
+    if (!followUpTimer) {
+      followUpTimer = setTimeout(() => {
+        followUpTimer = null;
+        quickCheck();
+      }, FOLLOW_UP_MS);
+    }
   });
 
   PluginAPI.registerShortcut({
@@ -601,7 +631,7 @@
   if (typeof PluginAPI.onUnload === 'function') {
     PluginAPI.onUnload(() => {
       if (timerId) clearInterval(timerId);
-      clearTimeout(habitTimerId);
+      clearTimeout(followUpTimer);
       timerId = null;
     });
   }
