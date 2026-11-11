@@ -8,6 +8,7 @@
   "author": "Pat",
   "hooks": [],
   "permissions": [],
+  "icon": "icon.svg",
   "iFrame": true,
   "sidePanel": true,
   "dataSharing": []
