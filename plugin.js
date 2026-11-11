@@ -604,6 +604,20 @@
     }
   });
 
+  // On phones the app does not show the side panel button in the header, so add
+  // our own. Desktop already has one from the manifest, so skip it there.
+  const platform = PluginAPI.cfg && PluginAPI.cfg.platform;
+  if (platform === 'android' || platform === 'ios') {
+    PluginAPI.registerHeaderButton({
+      id: 'open-gamify',
+      label: 'Gamify',
+      icon: 'military_tech',
+      onClick: () => {
+        PluginAPI.showIndexHtmlAsView();
+      },
+    });
+  }
+
   PluginAPI.registerShortcut({
     id: 'open-panel',
     label: 'Open Gamify panel',
