@@ -8,6 +8,13 @@
   const CHECK_INTERVAL_MS = 2 * 60 * 1000;
   const KEEP_DAYS = 90;
   const MAX_MISSED_LOOKBACK_DAYS = 7;
+  // Combo: tasks finished close together earn a growing bonus
+  const COMBO_WINDOW_MS = 30 * 60 * 1000;
+  const COMBO_START = 3; // bonus begins on this task of the combo
+  const COMBO_STEP = 5;
+  const COMBO_CAP = 20;
+  const MAX_FREEZES = 2; // streak freezes you can hold
+  const FREEZE_EVERY = 7; // earn one at every 7th streak day
 
   // Tweak rewards and penalties here
   const XP = {
@@ -29,6 +36,7 @@
     reminderEnabled: true,
     reminderTime: '20:00',
     reminderDevices: 'all', // 'all' | 'mobile'
+    celebrate: true, // show a dialog on level-up
   };
   const GOAL_UNITS = { tasks: 'tasks', minutes: 'min', xp: 'XP' };
 
@@ -51,10 +59,77 @@
     return localDateStr(dt);
   }
 
+  function diffDays(a, b) {
+    const [ay, am, ad] = a.split('-').map(Number);
+    const [by, bm, bd] = b.split('-').map(Number);
+    return Math.round((Date.UTC(ay, am - 1, ad) - Date.UTC(by, bm - 1, bd)) / 86400000);
+  }
+
   function levelFromXp(xp) {
     let level = 1;
     while (50 * (level + 1) * level <= xp) level++;
     return level;
+  }
+
+  // Rank names shown next to the level (icons are Material icon names)
+  const RANKS = [
+    { min: 1, name: 'Novice', icon: 'eco' },
+    { min: 3, name: 'Apprentice', icon: 'hiking' },
+    { min: 5, name: 'Adventurer', icon: 'explore' },
+    { min: 8, name: 'Veteran', icon: 'shield' },
+    { min: 12, name: 'Champion', icon: 'emoji_events' },
+    { min: 17, name: 'Master', icon: 'workspace_premium' },
+    { min: 23, name: 'Legend', icon: 'auto_awesome' },
+    { min: 30, name: 'Mythic', icon: 'diamond' },
+  ];
+  function rankFor(level) {
+    let r = RANKS[0];
+    for (const x of RANKS) if (level >= x.min) r = x;
+    return r;
+  }
+
+  // Achievements. Metadata is duplicated in index.html for display.
+  const FOCUS_DAY_MINUTES = 240;
+  const BADGES = [
+    { id: 'tasks-1', name: 'First step', icon: 'task_alt', test: (s) => s.stats.tasks >= 1 },
+    { id: 'tasks-10', name: 'Ten down', icon: 'checklist', test: (s) => s.stats.tasks >= 10 },
+    { id: 'tasks-50', name: 'Fifty strong', icon: 'done_all', test: (s) => s.stats.tasks >= 50 },
+    { id: 'tasks-100', name: 'Centurion', icon: 'military_tech', test: (s) => s.stats.tasks >= 100 },
+    { id: 'tasks-500', name: 'Task titan', icon: 'workspace_premium', test: (s) => s.stats.tasks >= 500 },
+    { id: 'streak-3', name: 'Warming up', icon: 'local_fire_department', test: (s) => s.bestStreak >= 3 },
+    { id: 'streak-7', name: 'Week warrior', icon: 'whatshot', test: (s) => s.bestStreak >= 7 },
+    { id: 'streak-30', name: 'Month master', icon: 'calendar_month', test: (s) => s.bestStreak >= 30 },
+    { id: 'streak-100', name: 'Unbreakable', icon: 'diamond', test: (s) => s.bestStreak >= 100 },
+    { id: 'habit-7', name: 'Habit formed', icon: 'repeat', test: (s) => s.stats.bestHabitStreak >= 7 },
+    { id: 'level-5', name: 'Level 5', icon: 'trending_up', test: (s) => levelFromXp(s.totalXp) >= 5 },
+    { id: 'level-10', name: 'Level 10', icon: 'rocket_launch', test: (s) => levelFromXp(s.totalXp) >= 10 },
+    { id: 'level-20', name: 'Level 20', icon: 'stars', test: (s) => levelFromXp(s.totalXp) >= 20 },
+    { id: 'level-30', name: 'Level 30', icon: 'auto_awesome', test: (s) => levelFromXp(s.totalXp) >= 30 },
+    { id: 'early-bird', name: 'Early bird', icon: 'wb_twilight', test: (s) => !!s.stats.earlyBird },
+    { id: 'night-owl', name: 'Night owl', icon: 'bedtime', test: (s) => !!s.stats.nightOwl },
+    { id: 'focus-day', name: 'Deep focus', icon: 'timer', test: (s) => !!s.stats.focusDay },
+  ];
+
+  // Marks newly earned badges on the state and returns them (never removes any)
+  function unlockBadges(state, today) {
+    const fresh = [];
+    for (const b of BADGES) {
+      if (state.badges[b.id]) continue;
+      if (b.test(state)) {
+        state.badges[b.id] = today;
+        fresh.push(b);
+      }
+    }
+    return fresh;
+  }
+
+  function announceBadges(fresh) {
+    if (!fresh.length) return;
+    PluginAPI.showSnack({
+      msg: (fresh.length === 1 ? 'Badge unlocked: ' : 'Badges unlocked: ') + fresh.map((b) => b.name).join(', '),
+      type: 'SUCCESS',
+      ico: fresh[0].icon,
+    });
   }
 
   function habitStreak(countOnDay, today) {
@@ -110,13 +185,23 @@
       habitPenalized: {},
       awardedXp: {}, // XP given per task / habit-day, so an uncheck can take it back
       habitAwardedXp: {},
+      badges: {},
+      stats: {},
+      freezes: 0,
+      quests: null,
+      combo: null,
+      awardedAm: {},
     };
     try {
       const raw = await PluginAPI.loadSyncedData(STATE_KEY);
-      if (raw) return Object.assign(base, JSON.parse(raw));
+      if (raw) Object.assign(base, JSON.parse(raw));
     } catch (e) {
       PluginAPI.log.warn('[Gamify] could not read state', e);
     }
+    base.stats = Object.assign(
+      { tasks: 0, bestHabitStreak: 0, earlyBird: false, nightOwl: false, focusDay: false },
+      base.stats
+    );
     return base;
   }
 
@@ -137,7 +222,7 @@
         if (map[k] < cutoff) delete map[k];
       }
     }
-    for (const [xpMap, dayMap] of [[state.awardedXp, state.awarded], [state.habitAwardedXp, state.habitAwarded]]) {
+    for (const [xpMap, dayMap] of [[state.awardedXp, state.awarded], [state.habitAwardedXp, state.habitAwarded], [state.awardedAm, state.awarded]]) {
       for (const k of Object.keys(xpMap || {})) {
         if (!dayMap[k]) delete xpMap[k];
       }
@@ -152,8 +237,10 @@
       const state = await loadState(day.todayStr);
       const result = await mutator(state, day);
       if (result === false) return null;
+      const fresh = unlockBadges(state, day.todayStr);
       prune(state, day.todayStr);
       await PluginAPI.persistDataSynced(JSON.stringify(state), STATE_KEY);
+      announceBadges(fresh);
       return result;
     });
     queue = run.catch(() => {});
@@ -194,11 +281,31 @@
     return entry.tasks;
   }
 
-  function levelUpSnack(level) {
+  async function levelUpSnack(level) {
+    const rank = rankFor(level);
+    const newRank = rank.name !== rankFor(level - 1).name;
+    try {
+      const settings = await loadSettings();
+      if (settings.celebrate && typeof PluginAPI.openDialog === 'function') {
+        PluginAPI.openDialog({
+          title: 'Level up!',
+          htmlContent:
+            '<div style="text-align:center;padding:8px 0">' +
+            '<span class="material-icons" style="font-size:56px">' + rank.icon + '</span>' +
+            '<div style="font-size:40px;font-weight:700;line-height:1.2">Level ' + level + '</div>' +
+            '<div style="font-size:16px;margin-top:4px">' + rank.name +
+            (newRank ? ' (new rank!)' : '') + '</div></div>',
+          buttons: [{ label: 'Keep going', color: 'primary', raised: true }],
+        });
+        return;
+      }
+    } catch (e) {
+      PluginAPI.log.warn('[Gamify] level-up dialog failed', e);
+    }
     PluginAPI.showSnack({
-      msg: 'Level up! You reached level ' + level + '.',
+      msg: 'Level up! You reached level ' + level + (newRank ? ' - new rank: ' + rank.name : ' (' + rank.name + ')') + '.',
       type: 'SUCCESS',
-      ico: 'military_tech',
+      ico: newRank ? rank.icon : 'military_tech',
     });
   }
 
@@ -236,13 +343,27 @@
         parts.push('before due');
       }
 
+      const nowMs = Date.now();
+      const comboCount = s.combo && nowMs - s.combo.lastAt <= COMBO_WINDOW_MS ? s.combo.count + 1 : 1;
+      s.combo = { count: comboCount, lastAt: nowMs };
+      if (comboCount >= COMBO_START) {
+        xp += Math.min(COMBO_CAP, COMBO_STEP * (comboCount - COMBO_START + 1));
+        parts.push('combo x' + comboCount);
+      }
+
       const levelBefore = levelFromXp(s.totalXp);
       s.awarded[taskId] = day.todayStr;
       s.awardedXp[taskId] = xp;
+      s.stats.tasks += 1;
+      const hour = new Date().getHours();
+      if (hour < 12) s.awardedAm[taskId] = true;
+      if (hour < 9 && hour >= 4) s.stats.earlyBird = true;
+      if (hour >= 22 || hour < 4) s.stats.nightOwl = true;
       s.totalXp += xp;
       const e = dayEntry(s, day.todayStr);
       e.xp += xp;
       e.tasks += 1;
+      if (hour < 12) e.amTasks = (e.amTasks || 0) + 1;
       const levelAfter = levelFromXp(s.totalXp);
 
       return { xp, parts, levelUp: levelAfter > levelBefore, level: levelAfter };
@@ -256,6 +377,7 @@
       ico: 'stars',
     });
     if (result.levelUp) levelUpSnack(result.level);
+    await evaluateQuests();
     await evaluateGoal();
   }
 
@@ -282,6 +404,7 @@
         let xp = XP.HABIT;
         if (streak > 0 && streak % 7 === 0) xp += XP.HABIT_WEEK_BONUS;
         s.habitAwardedXp[key] = xp;
+        s.stats.bestHabitStreak = Math.max(s.stats.bestHabitStreak, streak);
         gains.push({ title: c.title, xp, streak });
       }
 
@@ -310,6 +433,7 @@
       if (!gains.length && !misses.length && !advanced) return false;
 
       const e = dayEntry(s, today);
+      e.habits = (e.habits || 0) + gains.length;
       const levelBefore = levelFromXp(s.totalXp);
       const gained = gains.reduce((sum, g) => sum + g.xp, 0);
       s.totalXp += gained;
@@ -363,7 +487,7 @@
       let count = 0;
       const levelBefore = levelFromXp(s.totalXp);
 
-      const reverse = (dayStr, xp, isTask) => {
+      const reverse = (dayStr, xp, isTask, taskId) => {
         const x = Math.min(s.totalXp, xp);
         s.totalXp -= x;
         lost += x;
@@ -372,16 +496,22 @@
         if (e) {
           e.xp = Math.max(0, e.xp - xp);
           if (isTask) e.tasks = Math.max(0, e.tasks - 1);
+          else e.habits = Math.max(0, (e.habits || 0) - 1);
+          if (isTask && s.awardedAm[taskId]) e.amTasks = Math.max(0, (e.amTasks || 0) - 1);
         }
+        if (isTask) s.stats.tasks = Math.max(0, s.stats.tasks - 1);
+        // Undoing a task also steps the combo back, so toggling can't inflate it
+        if (isTask && s.combo) s.combo.count = Math.max(0, s.combo.count - 1);
       };
 
       for (const id of Object.keys(s.awarded)) {
         const t = byId[id];
         if (!t || t.isDone) continue; // deleted/archived tasks keep their XP
         const stored = s.awardedXp[id];
-        reverse(s.awarded[id], typeof stored === 'number' ? stored : (t.parentId ? XP.SUBTASK : XP.TASK), true);
+        reverse(s.awarded[id], typeof stored === 'number' ? stored : (t.parentId ? XP.SUBTASK : XP.TASK), true, id);
         delete s.awarded[id];
         delete s.awardedXp[id];
+        delete s.awardedAm[id];
       }
 
       for (const key of Object.keys(s.habitAwarded)) {
@@ -396,13 +526,44 @@
 
       if (!count) return false;
 
+      // Quests that are no longer met give their XP back (and can be earned again)
+      const qe = s.days[today];
+      if (s.quests && s.quests.day === today && qe) {
+        for (const q of s.quests.list) {
+          if (!q.done || questProgress(q, qe, minutes) >= q.target) continue;
+          q.done = false;
+          const x = Math.min(s.totalXp, q.xp);
+          s.totalXp -= x;
+          lost += x;
+          qe.xp = Math.max(0, qe.xp - q.xp);
+          if (s.quests.bonusPaid) {
+            s.quests.bonusPaid = false;
+            const b = Math.min(s.totalXp, QUEST_ALL_BONUS);
+            s.totalXp -= b;
+            lost += b;
+            qe.xp = Math.max(0, qe.xp - QUEST_ALL_BONUS);
+          }
+        }
+      }
+
       // Today's goal may no longer be met: take the streak day back
       const e = s.days[today];
       if (e && e.goalMet && goalProgress(settings, e, minutes) < settings.goalTarget) {
         e.goalMet = false;
+        // Hand back a freeze spent today, and take back one earned today
+        if (e.freezeUsed) s.freezes = Math.min(MAX_FREEZES, s.freezes + e.freezeUsed);
+        if (e.freezeEarned) s.freezes = Math.max(0, s.freezes - 1);
+        e.freezeUsed = 0;
+        e.freezeEarned = false;
         if (s.lastGoalDay === today) {
-          s.streak = Math.max(0, s.streak - 1);
-          s.lastGoalDay = s.streak > 0 ? addDays(today, -1) : null;
+          if (e.prevStreak !== undefined) {
+            // Restore exactly what it was before today's goal was counted
+            s.streak = e.prevStreak;
+            s.lastGoalDay = e.prevLastGoalDay;
+          } else {
+            s.streak = Math.max(0, s.streak - 1);
+            s.lastGoalDay = s.streak > 0 ? addDays(today, -1) : null;
+          }
         }
       }
       return { lost, count, levelDown: levelFromXp(s.totalXp) < levelBefore };
@@ -417,34 +578,157 @@
     }
   }
 
+  // ---------- daily quests ----------
+  const QUEST_XP = 15; // per quest
+  const QUEST_ALL_BONUS = 15; // extra when all of the day's quests are done
+  const QUESTS_PER_DAY = 3;
+
+  function seededRandom(str) {
+    let h = 1779033703 ^ str.length;
+    for (let i = 0; i < str.length; i++) {
+      h = Math.imul(h ^ str.charCodeAt(i), 3432918353);
+      h = (h << 13) | (h >>> 19);
+    }
+    let a = h >>> 0;
+    return function () {
+      a = (a + 0x6d2b79f5) >>> 0;
+      let t = a;
+      t = Math.imul(t ^ (t >>> 15), t | 1);
+      t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
+  function makeQuests(today, habitCount) {
+    const rnd = seededRandom(today);
+    const types = ['tasks', 'minutes', 'morning'];
+    if (habitCount > 0) types.push('habits');
+    for (let i = types.length - 1; i > 0; i--) {
+      const j = Math.floor(rnd() * (i + 1));
+      [types[i], types[j]] = [types[j], types[i]];
+    }
+    return types.slice(0, QUESTS_PER_DAY).map((type) => {
+      let target = 1;
+      if (type === 'tasks') target = [2, 3, 4][Math.floor(rnd() * 3)];
+      if (type === 'minutes') target = [20, 30, 45][Math.floor(rnd() * 3)];
+      if (type === 'habits') target = Math.min(habitCount, [1, 2][Math.floor(rnd() * 2)]);
+      return { type, target, xp: QUEST_XP, done: false };
+    });
+  }
+
+  function questText(q) {
+    if (q.type === 'tasks') return 'Finish ' + q.target + ' tasks';
+    if (q.type === 'minutes') return 'Track ' + q.target + ' minutes';
+    if (q.type === 'habits') return 'Complete ' + q.target + (q.target === 1 ? ' habit' : ' habits');
+    return 'Finish a task before noon';
+  }
+
+  function questProgress(q, e, minutes) {
+    if (q.type === 'tasks') return e.tasks || 0;
+    if (q.type === 'minutes') return minutes;
+    if (q.type === 'habits') return e.habits || 0;
+    return e.amTasks || 0;
+  }
+
+  async function evaluateQuests() {
+    const day = await getDay();
+    const tasks = await PluginAPI.getTasks();
+    const minutes = minutesTrackedOn(tasks, day.todayStr);
+    const appState = await getAppStateSafe();
+    const habitCount = enabledHabits(appState).length;
+
+    const result = await modifyState(async (s, d) => {
+      const today = d.todayStr;
+      let changed = false;
+      if (!s.quests || s.quests.day !== today) {
+        s.quests = { day: today, list: makeQuests(today, habitCount), bonusPaid: false };
+        changed = true;
+      }
+      const e = dayEntry(s, today);
+      const done = [];
+      let gained = 0;
+      for (const q of s.quests.list) {
+        if (q.done || questProgress(q, e, minutes) < q.target) continue;
+        q.done = true;
+        gained += q.xp;
+        done.push(questText(q));
+      }
+      if (!s.quests.bonusPaid && s.quests.list.every((q) => q.done)) {
+        s.quests.bonusPaid = true;
+        gained += QUEST_ALL_BONUS;
+        done.push('all quests done');
+      }
+      if (!gained) return changed ? { silent: true } : false;
+      const levelBefore = levelFromXp(s.totalXp);
+      s.totalXp += gained;
+      e.xp += gained;
+      const levelAfter = levelFromXp(s.totalXp);
+      return { gained, done, levelUp: levelAfter > levelBefore, level: levelAfter };
+    });
+
+    if (!result || result.silent) return;
+    PluginAPI.showSnack({
+      msg: '+' + result.gained + ' XP: quest done (' + result.done.join(', ') + ')',
+      type: 'SUCCESS',
+      ico: 'flag',
+    });
+    if (result.levelUp) levelUpSnack(result.level);
+  }
+
   // ---------- daily goal and main streak ----------
   async function evaluateGoal() {
     const settings = await loadSettings();
     const day = await getDay();
-    let minutes = 0;
-    if (settings.goalType === 'minutes') {
-      const tasks = await PluginAPI.getTasks();
-      minutes = minutesTrackedOn(tasks, day.todayStr);
-    }
+    const tasks = await PluginAPI.getTasks();
+    const minutes = minutesTrackedOn(tasks, day.todayStr);
 
     const result = await modifyState(async (s, d) => {
       const today = d.todayStr;
       const e = dayEntry(s, today);
-      if (e.goalMet) return false;
-      if (goalProgress(settings, e, minutes) < settings.goalTarget) return false;
+      let statChanged = false;
+      if (minutes >= FOCUS_DAY_MINUTES && !s.stats.focusDay) {
+        s.stats.focusDay = true;
+        statChanged = true;
+      }
+      if (e.goalMet || goalProgress(settings, e, minutes) < settings.goalTarget) {
+        return statChanged ? { statOnly: true } : false;
+      }
 
       e.goalMet = true;
+      let used = 0;
+      let earned = false;
       if (s.lastGoalDay !== today) {
-        s.streak = s.lastGoalDay === addDays(today, -1) ? s.streak + 1 : 1;
+        e.prevLastGoalDay = s.lastGoalDay;
+        e.prevStreak = s.streak;
+        const missed = s.lastGoalDay ? diffDays(today, s.lastGoalDay) - 1 : 0;
+        if (s.lastGoalDay && missed === 0) {
+          s.streak += 1;
+        } else if (s.lastGoalDay && missed > 0 && missed <= s.freezes) {
+          // Freezes cover the missed days; the streak carries on without counting them
+          s.freezes -= missed;
+          used = missed;
+          s.streak += 1;
+        } else {
+          s.streak = 1;
+        }
         s.lastGoalDay = today;
         s.bestStreak = Math.max(s.bestStreak, s.streak);
+        if (s.streak % FREEZE_EVERY === 0 && s.freezes < MAX_FREEZES) {
+          s.freezes += 1;
+          earned = true;
+        }
+        e.freezeUsed = used;
+        e.freezeEarned = earned;
       }
-      return { streak: s.streak };
+      return { streak: s.streak, used, earned };
     });
 
-    if (result) {
+    if (result && !result.statOnly) {
       PluginAPI.showSnack({
-        msg: 'Daily goal reached! Streak: ' + result.streak + ' day' + (result.streak === 1 ? '' : 's') + '.',
+        msg:
+          'Daily goal reached! Streak: ' + result.streak + ' day' + (result.streak === 1 ? '' : 's') + '.' +
+          (result.used ? ' ' + result.used + ' freeze' + (result.used === 1 ? '' : 's') + ' saved your streak.' : '') +
+          (result.earned ? ' You earned a streak freeze.' : ''),
         type: 'SUCCESS',
         ico: 'local_fire_department',
       });
@@ -544,6 +828,7 @@
       await revertUndone();
       await checkOverdue();
       await checkHabits();
+      await evaluateQuests();
       await evaluateGoal();
       await maybeRemind();
     } catch (e) {
@@ -579,6 +864,7 @@
     try {
       await revertUndone();
       await checkHabits();
+      await evaluateQuests();
       await evaluateGoal();
     } catch (e) {
       PluginAPI.log.err('[Gamify] quick check failed', e);

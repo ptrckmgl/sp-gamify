@@ -48,7 +48,16 @@ function scenarioData(name) {
   };
   const state = (xp, streak, best, day) => ({
     totalXp: xp, streak, bestStreak: best, lastGoalDay: streak ? today : null,
-    days: { [today]: day },
+    days: Object.assign({ [daysAgo(1)]: { xp: 55 }, [daysAgo(2)]: { xp: 120 }, [daysAgo(3)]: { xp: 0 }, [daysAgo(4)]: { xp: 80 }, [daysAgo(6)]: { xp: 30 } }, name === 'fresh' ? {} : {}, { [today]: day }),
+    quests: { day: today, bonusPaid: false, list: [
+      { type: 'tasks', target: 3, xp: 15, done: name === 'goal' },
+      { type: 'minutes', target: 30, xp: 15, done: false },
+      { type: 'habits', target: 2, xp: 15, done: false } ] },
+    combo: name === 'goal' ? { count: 4, lastAt: Date.now() } : null,
+    freezes: name === 'goal' ? 2 : name === 'fresh' ? 0 : 1,
+    badges: name === 'fresh' ? {} : name === 'goal'
+      ? { 'tasks-1': today, 'tasks-10': today, 'tasks-50': today, 'streak-3': today, 'streak-7': today, 'habit-7': today, 'level-5': today, 'early-bird': today }
+      : { 'tasks-1': today, 'streak-3': today },
   });
   switch (name) {
     case 'fresh':
@@ -72,7 +81,7 @@ function mockScript(theme, scn) {
   const hostVars = theme === 'dark'
     ? '--is-dark-theme:1;--bg:#131314;--card-bg:#212123;--text-color:#e6e6e6;--text-color-muted:#a0a0a0;--c-primary:#e91e63;--c-contrast:#fff;--input-bg:#2b2b2e;--input-border-color:#444;'
     : '--is-dark-theme:0;--bg:#f8f8f7;--card-bg:#ffffff;--text-color:#222;--text-color-muted:#666;--c-primary:#3f51b5;--c-contrast:#fff;--input-bg:#fff;--input-border-color:#ccc;';
-  return '<style>:root{' + hostVars + '}html,body{background:var(--bg)}</style><script>(function(){' +
+  return '<style>@import url("https://fonts.googleapis.com/icon?family=Material+Icons");.material-icons{font-family:"Material Icons";font-style:normal;font-weight:normal;line-height:1;display:inline-block;white-space:nowrap;-webkit-font-feature-settings:"liga";font-feature-settings:"liga";}:root{' + hostVars + '}html,body{background:var(--bg)}</style><script>(function(){' +
     'var store=' + JSON.stringify(store) + ';' +
     'var app={tasks:' + JSON.stringify(data.tasks) + ',simpleCounters:' + JSON.stringify(data.habits) + '};' +
     'window.PluginAPI={' +

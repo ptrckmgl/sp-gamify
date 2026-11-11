@@ -40,6 +40,31 @@
   .fill.good { background: var(--g-good); }
   .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; text-align: center; margin-top: 8px; }
   .stat .num { font-size: 18px; font-weight: 600; }
+  .badges { display: grid; grid-template-columns: repeat(auto-fill, minmax(64px, 1fr)); gap: 6px; margin-top: 8px; }
+  .badge { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 8px 2px; background: transparent; color: var(--g-muted); border: 1px solid var(--g-track); border-radius: 8px; font-weight: 400; opacity: .55; }
+  .badge.got { opacity: 1; color: var(--g-accent); border-color: var(--g-accent); }
+  .badge .material-icons { font-size: 24px; }
+  .badge-name { font-size: 10px; line-height: 1.2; text-align: center; color: var(--g-fg); }
+  #freeze { display: flex; align-items: center; justify-content: flex-end; gap: 2px; }
+  #freeze .material-icons { font-size: 14px; color: var(--g-accent); }
+  .week { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; align-items: end; height: 96px; margin-top: 10px; }
+  .wcol { display: flex; flex-direction: column; justify-content: flex-end; align-items: center; height: 100%; gap: 3px; }
+  .wval { font-size: 10px; color: var(--g-muted); line-height: 1; }
+  .wbar { width: 100%; max-width: 28px; border-radius: 4px 4px 2px 2px; background: var(--g-accent); opacity: .45; min-height: 2px; }
+  .wcol.today .wbar { opacity: 1; }
+  .wday { font-size: 11px; color: var(--g-muted); line-height: 1; }
+  .wcol.today .wday { color: var(--g-fg); font-weight: 600; }
+  .quest { padding: 8px 0; border-top: 1px solid var(--g-track); }
+  .quest:first-child { border-top: none; }
+  .quest .row .material-icons { font-size: 18px; margin-right: 6px; vertical-align: -4px; color: var(--g-muted); }
+  .quest.done .row .material-icons { color: var(--g-good); }
+  .quest.done .qtext { color: var(--g-muted); text-decoration: line-through; }
+  .quest .bar { height: 6px; margin: 6px 0 0; }
+  .combo { display: none; align-items: center; gap: 4px; margin-top: 6px; color: var(--g-accent); font-weight: 600; font-size: 13px; }
+  .combo.on { display: flex; }
+  .combo .material-icons { font-size: 16px; }
+  .rank { display: flex; align-items: center; gap: 4px; color: var(--g-accent); font-weight: 600; font-size: 13px; margin-top: 2px; }
+  .rank .material-icons { font-size: 18px; }
   .icon { width: 1em; height: 1em; fill: currentColor; vertical-align: -0.12em; margin-left: 3px; }
   .icon-flame { color: var(--g-accent); }
   .done .icon-check { margin: 0 4px 0 0; }
@@ -68,11 +93,13 @@
       <div>
         <div class="label">Level</div>
         <div class="big" id="level">1</div>
+        <div class="rank"><span class="material-icons" id="rankIcon" aria-hidden="true"></span><span id="rankName"></span></div>
       </div>
       <div style="text-align:right">
         <div class="label">Streak</div>
         <div class="big" id="streak">0</div>
         <div class="muted" id="best">Best: 0</div>
+        <div class="muted" id="freeze"></div>
       </div>
     </div>
     <div class="bar"><div class="fill" id="xpFill"></div></div>
@@ -95,11 +122,37 @@
       <div class="stat"><div class="num" id="xpToday">0</div><div class="muted">XP</div></div>
     </div>
     <div class="muted lost" id="lostToday" style="margin-top:6px"></div>
+    <div class="combo" id="comboLine"></div>
+  </div>
+
+  <div class="card">
+    <div class="row">
+      <div class="label">Daily quests</div>
+      <div class="muted" id="questCount"></div>
+    </div>
+    <div id="questList"></div>
+  </div>
+
+  <div class="card">
+    <div class="row">
+      <div class="label">This week</div>
+      <div class="muted" id="weekTotal"></div>
+    </div>
+    <div class="week" id="weekChart"></div>
   </div>
 
   <div class="card">
     <div class="label">Habits</div>
     <div id="habitList"></div>
+  </div>
+
+  <div class="card">
+    <div class="row">
+      <div class="label">Achievements</div>
+      <div class="muted" id="badgeCount"></div>
+    </div>
+    <div class="badges" id="badgeGrid"></div>
+    <div class="muted" id="badgeInfo" style="margin-top:8px"></div>
   </div>
 
   <div class="card">
@@ -118,6 +171,7 @@
         <option value="all">On all devices</option>
         <option value="mobile">On phones only</option>
       </select>
+      <label class="check full"><input id="celebrate" type="checkbox"> Level-up pop-up dialog</label>
       <button id="saveBtn" type="button" class="full">Save settings</button>
     </div>
   </div>
@@ -132,6 +186,10 @@
       <li>Habit done today +10 XP, +20 bonus every 7-day habit streak</li>
       <li>−10 XP per overdue task and per missed habit day</li>
       <li>Main streak grows each day you reach your goal; habit streaks grow each day you do the habit</li>
+      <li>Finish tasks within 30 min of each other: combo bonus from the 3rd task (+5, +10, +15, max +20)</li>
+      <li>Daily quests: +15 XP each, +15 more when all three are done</li>
+      <li>A streak freeze covers a missed day. Earn one every 7 streak days (hold up to 2)</li>
+      <li>Unchecking a task or habit takes its XP back</li>
     </ul>
   </div>
 
@@ -139,7 +197,7 @@
 (function () {
   const DEFAULT_SETTINGS = {
     goalType: 'tasks', goalTarget: 5,
-    reminderEnabled: true, reminderTime: '20:00', reminderDevices: 'all'
+    reminderEnabled: true, reminderTime: '20:00', reminderDevices: 'all', celebrate: true
   };
   const DEFAULT_TARGETS = { tasks: 5, minutes: 120, xp: 100 };
   const UNITS = { tasks: 'tasks', minutes: 'min', xp: 'XP' };
@@ -161,6 +219,21 @@
     let l = 1;
     while (levelFloor(l + 1) <= xp) l++;
     return l;
+  }
+  const RANKS = [
+    { min: 1, name: 'Novice', icon: 'eco' },
+    { min: 3, name: 'Apprentice', icon: 'hiking' },
+    { min: 5, name: 'Adventurer', icon: 'explore' },
+    { min: 8, name: 'Veteran', icon: 'shield' },
+    { min: 12, name: 'Champion', icon: 'emoji_events' },
+    { min: 17, name: 'Master', icon: 'workspace_premium' },
+    { min: 23, name: 'Legend', icon: 'auto_awesome' },
+    { min: 30, name: 'Mythic', icon: 'diamond' }
+  ];
+  function rankFor(level) {
+    let r = RANKS[0];
+    for (const x of RANKS) if (level >= x.min) r = x;
+    return r;
   }
   function habitStreak(cod, today) {
     let day = (cod[today] || 0) > 0 ? today : addDays(today, -1);
@@ -258,6 +331,125 @@
     return node;
   }
 
+  const BADGES = [
+    { id: 'tasks-1', name: 'First step', icon: 'task_alt', desc: 'Complete your first task' },
+    { id: 'tasks-10', name: 'Ten down', icon: 'checklist', desc: 'Complete 10 tasks' },
+    { id: 'tasks-50', name: 'Fifty strong', icon: 'done_all', desc: 'Complete 50 tasks' },
+    { id: 'tasks-100', name: 'Centurion', icon: 'military_tech', desc: 'Complete 100 tasks' },
+    { id: 'tasks-500', name: 'Task titan', icon: 'workspace_premium', desc: 'Complete 500 tasks' },
+    { id: 'streak-3', name: 'Warming up', icon: 'local_fire_department', desc: 'Reach a 3-day streak' },
+    { id: 'streak-7', name: 'Week warrior', icon: 'whatshot', desc: 'Reach a 7-day streak' },
+    { id: 'streak-30', name: 'Month master', icon: 'calendar_month', desc: 'Reach a 30-day streak' },
+    { id: 'streak-100', name: 'Unbreakable', icon: 'diamond', desc: 'Reach a 100-day streak' },
+    { id: 'habit-7', name: 'Habit formed', icon: 'repeat', desc: 'Keep any habit going for 7 days' },
+    { id: 'level-5', name: 'Level 5', icon: 'trending_up', desc: 'Reach level 5' },
+    { id: 'level-10', name: 'Level 10', icon: 'rocket_launch', desc: 'Reach level 10' },
+    { id: 'level-20', name: 'Level 20', icon: 'stars', desc: 'Reach level 20' },
+    { id: 'level-30', name: 'Level 30', icon: 'auto_awesome', desc: 'Reach level 30' },
+    { id: 'early-bird', name: 'Early bird', icon: 'wb_twilight', desc: 'Finish a task before 9:00' },
+    { id: 'night-owl', name: 'Night owl', icon: 'bedtime', desc: 'Finish a task after 22:00' },
+    { id: 'focus-day', name: 'Deep focus', icon: 'timer', desc: 'Track 4 hours in one day' }
+  ];
+  let selectedBadge = null;
+  function renderBadges(earned) {
+    const grid = $('badgeGrid');
+    grid.replaceChildren();
+    let count = 0;
+    for (const b of BADGES) {
+      const got = !!earned[b.id];
+      if (got) count++;
+      const cell = el('button', 'badge' + (got ? ' got' : ''));
+      cell.type = 'button';
+      cell.setAttribute('aria-label', b.name + (got ? ' (earned)' : ' (locked)') + ': ' + b.desc);
+      const ic = el('span', 'material-icons', got ? b.icon : 'lock');
+      ic.setAttribute('aria-hidden', 'true');
+      cell.appendChild(ic);
+      cell.appendChild(el('span', 'badge-name', b.name));
+      cell.addEventListener('click', () => { selectedBadge = b.id; showBadgeInfo(earned); });
+      grid.appendChild(cell);
+    }
+    $('badgeCount').textContent = count + ' / ' + BADGES.length;
+    showBadgeInfo(earned);
+  }
+  function showBadgeInfo(earned) {
+    const b = BADGES.find((x) => x.id === selectedBadge);
+    $('badgeInfo').textContent = b
+      ? b.name + ': ' + b.desc + (earned[b.id] ? ' (earned ' + earned[b.id] + ')' : '')
+      : 'Tap a badge to see how to earn it.';
+  }
+
+  function questText(q) {
+    if (q.type === 'tasks') return 'Finish ' + q.target + ' tasks';
+    if (q.type === 'minutes') return 'Track ' + q.target + ' minutes';
+    if (q.type === 'habits') return 'Complete ' + q.target + (q.target === 1 ? ' habit' : ' habits');
+    return 'Finish a task before noon';
+  }
+  function questProgress(q, day, minutes) {
+    if (q.type === 'tasks') return day.tasks || 0;
+    if (q.type === 'minutes') return minutes;
+    if (q.type === 'habits') return day.habits || 0;
+    return day.amTasks || 0;
+  }
+  function renderQuests(quests, day, minutes, today) {
+    const list = $('questList');
+    list.replaceChildren();
+    if (!quests || quests.day !== today) {
+      $('questCount').textContent = '';
+      list.appendChild(el('div', 'muted', "Today's quests appear shortly."));
+      return;
+    }
+    let done = 0;
+    for (const q of quests.list) {
+      if (q.done) done++;
+      const prog = Math.min(q.target, questProgress(q, day, minutes));
+      const row = el('div', 'quest' + (q.done ? ' done' : ''));
+      const top = el('div', 'row');
+      const left = el('div');
+      const ic = el('span', 'material-icons', q.done ? 'check_circle' : 'flag');
+      ic.setAttribute('aria-hidden', 'true');
+      left.appendChild(ic);
+      left.appendChild(el('span', 'qtext', questText(q)));
+      top.appendChild(left);
+      top.appendChild(el('div', 'muted', q.done ? 'Done' : prog + ' / ' + q.target + ' · +' + q.xp + ' XP'));
+      row.appendChild(top);
+      const bar = el('div', 'bar');
+      const fill = el('div', 'fill' + (q.done ? ' good' : ''));
+      fill.style.width = Math.min(100, (prog / q.target) * 100) + '%';
+      bar.appendChild(fill);
+      row.appendChild(bar);
+      list.appendChild(row);
+    }
+    $('questCount').textContent = quests.bonusPaid
+      ? 'All done, bonus earned'
+      : done + ' / ' + quests.list.length + ' · bonus when all done';
+  }
+
+  function renderWeek(days, today) {
+    const chart = $('weekChart');
+    chart.replaceChildren();
+    const list = [];
+    for (let i = 6; i >= 0; i--) {
+      const d = addDays(today, -i);
+      list.push({ day: d, xp: (days[d] && days[d].xp) || 0 });
+    }
+    const max = Math.max(1, ...list.map((x) => x.xp));
+    let total = 0;
+    for (const x of list) {
+      total += x.xp;
+      const col = el('div', 'wcol' + (x.day === today ? ' today' : ''));
+      col.appendChild(el('div', 'wval', x.xp > 0 ? String(x.xp) : ''));
+      const bar = el('div', 'wbar');
+      bar.style.height = Math.max(2, Math.round((x.xp / max) * 58)) + 'px';
+      if (x.xp === 0) bar.style.opacity = '.15';
+      col.appendChild(bar);
+      const [y, m, dd] = x.day.split('-').map(Number);
+      col.appendChild(el('div', 'wday', new Date(y, m - 1, dd).toLocaleDateString(undefined, { weekday: 'narrow' })));
+      col.title = x.day + ': ' + x.xp + ' XP';
+      chart.appendChild(col);
+    }
+    $('weekTotal').textContent = total + ' XP in 7 days';
+  }
+
   function renderHabits(habits, today) {
     const list = $('habitList');
     list.replaceChildren();
@@ -304,12 +496,31 @@
       const floor = levelFloor(level);
       const next = levelFloor(level + 1);
       $('level').textContent = level;
+      const rank = rankFor(level);
+      $('rankIcon').textContent = rank.icon;
+      $('rankName').textContent = rank.name;
       $('xpText').textContent = (total - floor) + ' / ' + (next - floor) + ' XP to level ' + (level + 1);
       $('totalXp').textContent = 'Total: ' + total + ' XP';
       $('xpFill').style.width = Math.min(100, ((total - floor) / (next - floor)) * 100) + '%';
 
       // Main streak (shown as 0 once a day has been missed)
-      const alive = state.lastGoalDay === today || state.lastGoalDay === addDays(today, -1);
+      const freezes = state.freezes || 0;
+      let alive = false;
+      if (state.lastGoalDay) {
+        // Days missed since the last goal day, not counting today (still in progress)
+        const gap = Math.round((Date.UTC(...today.split('-').map((v, i) => i === 1 ? v - 1 : +v)) -
+          Date.UTC(...state.lastGoalDay.split('-').map((v, i) => i === 1 ? v - 1 : +v))) / 86400000);
+        const missed = Math.max(0, gap - 1);
+        alive = missed <= freezes;
+      }
+      const fz = $('freeze');
+      fz.replaceChildren();
+      if (freezes > 0) {
+        const ic = el('span', 'material-icons', 'ac_unit');
+        ic.setAttribute('aria-hidden', 'true');
+        fz.appendChild(ic);
+        fz.appendChild(document.createTextNode(freezes + (freezes === 1 ? ' freeze' : ' freezes')));
+      }
       withIcon($('streak'), String(alive ? state.streak : 0), 'flame');
       $('best').textContent = 'Best: ' + (state.bestStreak || 0);
 
@@ -331,7 +542,21 @@
       $('xpToday').textContent = day.xp;
       $('lostToday').textContent = day.lost ? '−' + day.lost + ' XP lost today' : '';
 
+      const cl = $('comboLine');
+      cl.replaceChildren();
+      const combo = state.combo;
+      const comboOn = combo && combo.count >= 2 && Date.now() - combo.lastAt <= 30 * 60 * 1000;
+      cl.classList.toggle('on', !!comboOn);
+      if (comboOn) {
+        const ic = el('span', 'material-icons', 'bolt');
+        ic.setAttribute('aria-hidden', 'true');
+        cl.appendChild(ic);
+        cl.appendChild(document.createTextNode('Combo x' + combo.count + (combo.count >= 3 ? ': bonus XP active' : ': one more task for a bonus')));
+      }
       renderHabits(habits, today);
+      renderWeek(state.days || {}, today);
+      renderQuests(state.quests, day, minutes, today);
+      renderBadges(state.badges || {});
 
       if (!formReady) {
         $('goalType').value = settings.goalType;
@@ -339,6 +564,7 @@
         $('reminderEnabled').checked = !!settings.reminderEnabled;
         $('reminderTime').value = settings.reminderTime;
         $('reminderDevices').value = settings.reminderDevices;
+        $('celebrate').checked = settings.celebrate !== false;
         formReady = true;
       }
     } catch (e) {
@@ -367,7 +593,8 @@
       goalTarget,
       reminderEnabled: $('reminderEnabled').checked,
       reminderTime,
-      reminderDevices: $('reminderDevices').value
+      reminderDevices: $('reminderDevices').value,
+      celebrate: $('celebrate').checked
     };
     await PluginAPI.persistDataSynced(JSON.stringify(settings), 'settings');
     PluginAPI.showSnack({ msg: 'Settings saved.', type: 'SUCCESS', ico: 'check' });

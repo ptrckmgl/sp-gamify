@@ -6,7 +6,9 @@ A plugin that adds XP, levels, daily-goal and habit streaks to [Super Productivi
 - XP for habits (enabled simple counters), with a bonus every 7th streak day
 - Penalties for overdue tasks and missed habit days; unchecking a task or habit takes its XP back
 - Daily goal (tasks, minutes or XP) with a main streak, plus a streak per habit
-- Side panel that follows light/dark theme, and an optional streak reminder
+- Rank names (Novice to Mythic), 17 achievement badges, daily quests, combo bonus XP and streak freezes
+- Level-up dialog (can be turned off), weekly XP chart
+- Side panel that follows the app's theme, and an optional streak reminder
 
 ## Install
 
