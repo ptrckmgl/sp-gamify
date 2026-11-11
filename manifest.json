@@ -1,11 +1,11 @@
 {
   "id": "sp-gamify",
   "name": "Gamify",
-  "version": "1.2.2",
+  "version": "1.2.3",
   "manifestVersion": 1,
   "minSupVersion": "20.0.0",
   "description": "Earn XP and levels for tasks and habits, keep daily-goal and habit streaks, and lose XP for overdue tasks and missed habits.",
-  "author": "Pat",
+  "author": "ptrckmgl",
   "hooks": [],
   "permissions": [],
   "icon": "icon.svg",

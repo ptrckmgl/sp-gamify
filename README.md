@@ -19,3 +19,7 @@ python -m http.server 8765
 ```
 
 Open http://localhost:8765/preview.html. It runs `index.html` against a fake plugin API with sample data. It does not exercise `plugin.js`.
+
+## License
+
+MIT, see [LICENSE](LICENSE).
