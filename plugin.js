@@ -6,7 +6,13 @@
   const SETTINGS_KEY = 'settings';
   const REMINDER_SECRET_KEY = 'lastReminderDay'; // local to this device, never synced
   const CHECK_INTERVAL_MS = 2 * 60 * 1000;
-  const KEEP_DAYS = 90;
+  const KEEP_DAYS = 90; // daily summaries and overdue-penalty records
+  // Per-task and per-habit-day reward records only need to outlive the
+  // uncheck-to-undo window. Keeping them short keeps the synced state small
+  // (the app caps one plugin data key at 256 KB).
+  const UNDO_WINDOW_DAYS = 7;
+  const HABIT_PENALTY_KEEP_DAYS = 14; // missed-day checks look back at most 7 days
+  const STATE_SOFT_LIMIT = 200 * 1024;
   const MAX_MISSED_LOOKBACK_DAYS = 7;
   // Combo: tasks finished close together earn a growing bonus
   const COMBO_WINDOW_MS = 30 * 60 * 1000;
@@ -33,7 +39,7 @@
   const DEFAULT_SETTINGS = {
     goalType: 'tasks',
     goalTarget: 5,
-    reminderEnabled: true,
+    reminderEnabled: false,
     reminderTime: '20:00',
     reminderDevices: 'all', // 'all' | 'mobile'
     celebrate: true, // show a dialog on level-up
@@ -42,6 +48,7 @@
 
   let timerId = null;
   let queue = Promise.resolve();
+  let saveErrorShown = false;
 
   // ---------- helpers ----------
   function pad(n) {
@@ -212,16 +219,23 @@
     return state.days[today];
   }
 
-  function prune(state, today) {
+  function pruneMap(map, cutoff) {
+    for (const k of Object.keys(map || {})) {
+      if (map[k] < cutoff) delete map[k];
+    }
+  }
+
+  function prune(state, today, undoDays) {
     const cutoff = addDays(today, -KEEP_DAYS);
     for (const k of Object.keys(state.days)) {
       if (k < cutoff) delete state.days[k];
     }
-    for (const map of [state.awarded, state.penalized, state.habitAwarded, state.habitPenalized]) {
-      for (const k of Object.keys(map)) {
-        if (map[k] < cutoff) delete map[k];
-      }
-    }
+    // Overdue records stay long so the same task is never penalised twice
+    pruneMap(state.penalized, cutoff);
+    pruneMap(state.habitPenalized, addDays(today, -HABIT_PENALTY_KEEP_DAYS));
+    const undoCutoff = addDays(today, -(undoDays === undefined ? UNDO_WINDOW_DAYS : undoDays));
+    pruneMap(state.awarded, undoCutoff);
+    pruneMap(state.habitAwarded, undoCutoff);
     for (const [xpMap, dayMap] of [[state.awardedXp, state.awarded], [state.habitAwardedXp, state.habitAwarded], [state.awardedAm, state.awarded]]) {
       for (const k of Object.keys(xpMap || {})) {
         if (!dayMap[k]) delete xpMap[k];
@@ -239,13 +253,24 @@
       if (result === false) return null;
       const fresh = unlockBadges(state, day.todayStr);
       prune(state, day.todayStr);
-      await PluginAPI.persistDataSynced(JSON.stringify(state), STATE_KEY);
+      let json = JSON.stringify(state);
+      if (json.length > STATE_SOFT_LIMIT) {
+        // Very heavy use: keep only today's reward records so saving keeps working
+        prune(state, day.todayStr, 0);
+        json = JSON.stringify(state);
+      }
+      await PluginAPI.persistDataSynced(json, STATE_KEY);
+      saveErrorShown = false;
       announceBadges(fresh);
       return result;
     });
     queue = run.catch(() => {});
     return run.catch((err) => {
       PluginAPI.log.err('[Gamify] state update failed', err);
+      if (!saveErrorShown) {
+        saveErrorShown = true;
+        PluginAPI.showSnack({ msg: 'Gamify could not save your progress. Check the console for details.', type: 'ERROR' });
+      }
       return null;
     });
   }
